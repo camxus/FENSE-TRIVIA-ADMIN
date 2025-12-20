@@ -8,7 +8,7 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Quiz Admin - Manage Questions & Categories",
+  title: "Fense Trivia Admin - Manage Questions & Categories",
   description: "Admin dashboard for managing quiz questions and categories",
   generator: "v0.app",
   icons: {
