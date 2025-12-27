@@ -206,7 +206,7 @@ export default function QuizAdmin() {
         questions: arrayUnion({
           id: newQuestionEntry.id,
           question: newQuestionEntry.question,
-          answer: newQuestionEntry.answer,
+          answer: newQuestionEntry.answer.trim(),
           timeLimit: newQuestionEntry.timeLimit,
           createdAt: new Date(),
         }),
@@ -295,7 +295,7 @@ export default function QuizAdmin() {
           ? {
             ...q,
             question: updatedQuestion.question,
-            answer: updatedQuestion.answer.toUpperCase(),
+            answer: updatedQuestion.answer.toUpperCase().trim(),
             timeLimit: updatedQuestion.timeLimit,
           }
           : q
