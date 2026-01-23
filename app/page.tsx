@@ -24,8 +24,8 @@ import Image from "next/image"
 
 interface Question {
   id: string
-  question: string
-  answer: string
+  question: Record<"en" | "fr", string>
+  answer: Record<"en" | "fr", string>
   timeLimit: number
 }
 
@@ -49,7 +49,11 @@ export default function QuizAdmin() {
   const [editingCategoryId, setEditingCategoryId] = useState<string>("")
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null)
   const [newCategoryName, setNewCategoryName] = useState("")
-  const [newQuestion, setNewQuestion] = useState({ question: "", answer: "", timeLimit: 30 })
+  const [newQuestion, setNewQuestion] = useState({
+    question: { en: "", fr: "" },
+    answer: { en: "", fr: "" },
+    timeLimit: 30,
+  })
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
@@ -180,7 +184,7 @@ export default function QuizAdmin() {
   }
 
   const addQuestion = async (categoryId: string) => {
-    if (!newQuestion.question.trim() || !newQuestion.answer.trim() || isSaving) return;
+    if (!newQuestion.question.en.trim() || !newQuestion.answer.en.trim() || !newQuestion.question.fr.trim() || !newQuestion.answer.fr.trim() || isSaving) return;
 
     setIsSaving(true);
 
@@ -198,7 +202,10 @@ export default function QuizAdmin() {
       const newQuestionEntry = {
         id: crypto.randomUUID(), // generate a unique ID locally
         question: newQuestion.question,
-        answer: newQuestion.answer.toUpperCase(),
+        answer: {
+          fr: newQuestion.answer.fr.toUpperCase(),
+          en: newQuestion.answer.en.toUpperCase()
+        },
         timeLimit: newQuestion.timeLimit,
       }
 
@@ -206,7 +213,10 @@ export default function QuizAdmin() {
         questions: arrayUnion({
           id: newQuestionEntry.id,
           question: newQuestionEntry.question,
-          answer: newQuestionEntry.answer.trim(),
+          answer: {
+          fr: newQuestionEntry.answer.fr.trim(),
+          en: newQuestionEntry.answer.en.trim()
+        },
           timeLimit: newQuestionEntry.timeLimit,
           createdAt: new Date(),
         }),
@@ -222,7 +232,11 @@ export default function QuizAdmin() {
       )
 
       // Reset new question form
-      setNewQuestion({ question: "", answer: "", timeLimit: 30 });
+      setNewQuestion({
+        question: { en: "", fr: "" },
+        answer: { en: "", fr: "" },
+        timeLimit: 30,
+      });
       setIsAddQuestionOpen(false);
     } catch (error) {
       console.error("[v0] Error adding question:", error);
@@ -270,7 +284,7 @@ export default function QuizAdmin() {
 
 
   const updateQuestion = async (categoryId: string, updatedQuestion: Question) => {
-    if (!updatedQuestion.question.trim() || !updatedQuestion.answer.trim() || isSaving) return;
+    if (!updatedQuestion.question.fr.trim() || !updatedQuestion.question.en.trim() || !updatedQuestion.answer.fr.trim() || !updatedQuestion.answer.en.trim() || isSaving) return;
     setIsSaving(true);
 
     try {
@@ -294,14 +308,12 @@ export default function QuizAdmin() {
         q.id === updatedQuestion.id
           ? {
             ...q,
-            question: updatedQuestion.question,
-            answer: updatedQuestion.answer.toUpperCase().trim(),
+            question: { en: updatedQuestion.question.en, fr: updatedQuestion.question.fr },
+            answer: { en: updatedQuestion.answer.en.toUpperCase().trim(), fr: updatedQuestion.answer.fr.toUpperCase().trim() },
             timeLimit: updatedQuestion.timeLimit,
           }
           : q
       );
-
-      console.log(updatedQuestions)
 
       // Write back the updated array
       await updateDoc(categoryDocRef, { questions: updatedQuestions });
@@ -487,22 +499,54 @@ export default function QuizAdmin() {
                           </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4">
+                          <Label>Question</Label>
                           <div>
-                            <Label htmlFor="question">Question</Label>
+                            <Label>
+                              <span className="text-muted-foreground">English</span>
+                            </Label>
                             <Input
-                              id="question"
-                              value={newQuestion.question}
-                              onChange={(e) => setNewQuestion({ ...newQuestion, question: e.target.value })}
-                              placeholder="Enter question"
+                              value={newQuestion.question.en}
+                              onChange={(e) =>
+                                setNewQuestion({ ...newQuestion, question: { ...newQuestion.question, en: e.target.value } })
+                              }
+                              placeholder="Enter question in English"
                             />
                           </div>
                           <div>
-                            <Label htmlFor="answer">Answer</Label>
+                            <Label>
+                              <span className="text-muted-foreground">French</span>
+                            </Label>
                             <Input
-                              id="answer"
-                              value={newQuestion.answer}
-                              onChange={(e) => setNewQuestion({ ...newQuestion, answer: e.target.value.toUpperCase() })}
-                              placeholder="Enter answer"
+                              value={newQuestion.question.fr}
+                              onChange={(e) =>
+                                setNewQuestion({ ...newQuestion, question: { ...newQuestion.question, fr: e.target.value } })
+                              }
+                              placeholder="Enter question in French"
+                            />
+                          </div>
+                          <Label>Answer</Label>
+                          <div>
+                            <Label>
+                              <span className="text-muted-foreground">English</span>
+                            </Label>
+                            <Input
+                              value={newQuestion.answer.en}
+                              onChange={(e) =>
+                                setNewQuestion({ ...newQuestion, answer: { ...newQuestion.answer, en: e.target.value.toUpperCase() } })
+                              }
+                              placeholder="Enter answer in English"
+                            />
+                          </div>
+                          <div>
+                            <Label>
+                              <span className="text-muted-foreground">French</span>
+                            </Label>
+                            <Input
+                              value={newQuestion.answer.fr}
+                              onChange={(e) =>
+                                setNewQuestion({ ...newQuestion, answer: { ...newQuestion.answer, fr: e.target.value.toUpperCase() } })
+                              }
+                              placeholder="Enter answer in French"
                             />
                           </div>
                           <div>
@@ -545,9 +589,23 @@ export default function QuizAdmin() {
                                 {question.timeLimit}s
                               </Badge>
                             </div>
-                            <p className="text-sm font-medium text-foreground">{question.question}</p>
-                            <p className="text-sm text-muted-foreground">
-                              <span className="font-medium">Answer:</span> {question.answer}
+                            <p className="flex flex-col text-sm text-foreground space-y-1">
+                              <span className="font-medium">Question: </span>
+                              <span>
+                                <span className="text-muted-foreground">English</span> {question.question.en}
+                              </span>
+                              <span>
+                                <span className="text-muted-foreground">French</span> {question.question.fr}
+                              </span>
+                            </p>
+                            <p className="flex flex-col text-sm text-muted-foreground space-y-1">
+                              <span className="font-medium">Answer: </span>
+                              <span>
+                                <span className="text-muted-foreground/80">English</span> {question.answer.en}
+                              </span>
+                              <span>
+                                <span className="text-muted-foreground/80">French</span> {question.answer.fr}
+                              </span>
                             </p>
                           </div>
                           <DropdownMenu>
@@ -637,22 +695,73 @@ export default function QuizAdmin() {
           </DialogHeader>
           {editingQuestion && (
             <div className="space-y-4">
+              <Label>
+                Question
+              </Label>
               <div>
-                <Label htmlFor="edit-question">Question</Label>
+                <Label>
+                  <span className="text-muted-foreground">English</span>
+                </Label>
                 <Input
-                  id="edit-question"
-                  value={editingQuestion.question}
-                  onChange={(e) => setEditingQuestion({ ...editingQuestion, question: e.target.value })}
-                  placeholder="Enter question"
+                  value={editingQuestion.question.en}
+                  onChange={(e) =>
+                    setEditingQuestion({
+                      ...editingQuestion,
+                      question: { ...editingQuestion.question, en: e.target.value },
+                    })
+                  }
+                  placeholder="Enter question in English"
                 />
               </div>
+
               <div>
-                <Label htmlFor="edit-answer">Answer</Label>
+                <Label>
+                  <span className="text-muted-foreground">French</span>
+                </Label>
                 <Input
-                  id="edit-answer"
-                  value={editingQuestion.answer}
-                  onChange={(e) => setEditingQuestion({ ...editingQuestion, answer: e.target.value })}
-                  placeholder="Enter answer"
+                  value={editingQuestion.question.fr}
+                  onChange={(e) =>
+                    setEditingQuestion({
+                      ...editingQuestion,
+                      question: { ...editingQuestion.question, fr: e.target.value },
+                    })
+                  }
+                  placeholder="Enter question in French"
+                />
+              </div>
+
+              <Label>
+                Answer
+              </Label>
+              <div>
+                <Label>
+                  <span className="text-muted-foreground">English</span>
+                </Label>
+                <Input
+                  value={editingQuestion.answer.en}
+                  onChange={(e) =>
+                    setEditingQuestion({
+                      ...editingQuestion,
+                      answer: { ...editingQuestion.answer, en: e.target.value.toUpperCase() },
+                    })
+                  }
+                  placeholder="Enter answer in English"
+                />
+              </div>
+
+              <div>
+                <Label>
+                  <span className="text-muted-foreground">French</span>
+                </Label>
+                <Input
+                  value={editingQuestion.answer.fr}
+                  onChange={(e) =>
+                    setEditingQuestion({
+                      ...editingQuestion,
+                      answer: { ...editingQuestion.answer, fr: e.target.value.toUpperCase() },
+                    })
+                  }
+                  placeholder="Enter answer in French"
                 />
               </div>
               <div>
