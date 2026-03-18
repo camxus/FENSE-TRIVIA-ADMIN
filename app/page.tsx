@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
   DialogContent,
@@ -25,8 +26,9 @@ import Image from "next/image"
 interface Question {
   id: string
   question: Record<"en" | "fr", string>
-  answer: Record<"en" | "fr", string>
+  answer: Record<"en" | "fr", string | boolean>
   timeLimit: number
+  isBoolean: boolean
 }
 
 interface Category {
@@ -49,10 +51,11 @@ export default function QuizAdmin() {
   const [editingCategoryId, setEditingCategoryId] = useState<string>("")
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null)
   const [newCategoryName, setNewCategoryName] = useState("")
-  const [newQuestion, setNewQuestion] = useState({
+  const [newQuestion, setNewQuestion] = useState<Omit<Question, "id">>({
     question: { en: "", fr: "" },
     answer: { en: "", fr: "" },
     timeLimit: 30,
+    isBoolean: false,
   })
   const [isSaving, setIsSaving] = useState(false)
 
@@ -79,9 +82,9 @@ export default function QuizAdmin() {
       for (const categoryDoc of snapshot.docs) {
         const data = categoryDoc.data()
 
-        // Ensure `questions` field exists as an array
         const questions: Question[] = (data.questions || []).map((q: any, index: number) => ({
-          id: q.id || index.toString(), // fallback ID if not present
+          id: q.id || index.toString(),
+          isBoolean: q.isBoolean ?? false,
           ...q,
         }))
 
@@ -106,19 +109,16 @@ export default function QuizAdmin() {
     try {
       const auth = getAuth();
 
-      // Ensure user is signed in (anonymous fallback)
       if (!auth.currentUser) {
         await signInAnonymously(auth);
       }
 
-      // Add the category to Firestore
       const docRef = await addDoc(collection(db, "questions"), {
         categoryName: newCategoryName,
         questions: [],
-        createdAt: new Date(), // optional, helps with ordering
+        createdAt: new Date(),
       });
 
-      // Update local state
       setCategories([...categories, { id: docRef.id, categoryName: newCategoryName, questions: [] }]);
       setNewCategoryName("");
       setIsAddCategoryOpen(false);
@@ -135,15 +135,12 @@ export default function QuizAdmin() {
     try {
       const auth = getAuth();
 
-      // Ensure user is signed in (anonymous fallback)
       if (!auth.currentUser) {
         await signInAnonymously(auth);
       }
 
-      // Delete the category document (questions are inside the array)
       await deleteDoc(doc(db, "questions", categoryId));
 
-      // Update local state
       setCategories(categories.filter((cat) => cat.id !== categoryId));
       if (selectedCategory === categoryId) {
         setSelectedCategory(null);
@@ -161,7 +158,6 @@ export default function QuizAdmin() {
     try {
       const auth = getAuth();
 
-      // Ensure user is signed in (anonymous fallback)
       if (!auth.currentUser) {
         await signInAnonymously(auth);
       }
@@ -184,45 +180,49 @@ export default function QuizAdmin() {
   }
 
   const addQuestion = async (categoryId: string) => {
-    if (!newQuestion.question.en.trim() || !newQuestion.answer.en.trim() || !newQuestion.question.fr.trim() || !newQuestion.answer.fr.trim() || isSaving) return;
+    // For boolean questions, answers are always "true"/"false" — skip the answer field validation
+    const answersValid = newQuestion.isBoolean
+      ? typeof newQuestion.answer.en === "boolean" && typeof newQuestion.answer.fr === "boolean"
+      : newQuestion.answer.en.toString().trim() && newQuestion.answer.fr.toString().trim()
+
+    if (
+      !newQuestion.question.en.trim() ||
+      !newQuestion.question.fr.trim() ||
+      !answersValid ||
+      isSaving
+    ) return;
 
     setIsSaving(true);
 
     try {
       const auth = getAuth();
 
-      // Sign in anonymously if no user is logged in
       if (!auth.currentUser) {
         await signInAnonymously(auth);
       }
 
-      // Reference to the subcollection "questions" under the category
       const categoryDocRef = doc(db, "questions", categoryId);
 
       const newQuestionEntry = {
-        id: crypto.randomUUID(), // generate a unique ID locally
+        id: crypto.randomUUID(),
         question: newQuestion.question,
-        answer: {
-          fr: newQuestion.answer.fr.toUpperCase(),
-          en: newQuestion.answer.en.toUpperCase()
-        },
+        answer: newQuestion.isBoolean
+          ? { en: newQuestion.answer.en, fr: newQuestion.answer.en }
+          : {
+              fr: newQuestion.answer.fr.toString().toUpperCase().trim(),
+              en: newQuestion.answer.en.toString().toUpperCase().trim(),
+            },
         timeLimit: newQuestion.timeLimit,
+        isBoolean: newQuestion.isBoolean,
       }
 
       await updateDoc(categoryDocRef, {
         questions: arrayUnion({
-          id: newQuestionEntry.id,
-          question: newQuestionEntry.question,
-          answer: {
-          fr: newQuestionEntry.answer.fr.trim(),
-          en: newQuestionEntry.answer.en.trim()
-        },
-          timeLimit: newQuestionEntry.timeLimit,
+          ...newQuestionEntry,
           createdAt: new Date(),
         }),
       })
 
-      // Update local state
       setCategories(
         categories.map(cat =>
           cat.id === categoryId
@@ -231,11 +231,11 @@ export default function QuizAdmin() {
         )
       )
 
-      // Reset new question form
       setNewQuestion({
         question: { en: "", fr: "" },
         answer: { en: "", fr: "" },
         timeLimit: 30,
+        isBoolean: false,
       });
       setIsAddQuestionOpen(false);
     } catch (error) {
@@ -250,26 +250,21 @@ export default function QuizAdmin() {
     try {
       const auth = getAuth();
 
-      // Ensure user is signed in (anonymous fallback)
       if (!auth.currentUser) {
         await signInAnonymously(auth);
       }
 
       const categoryDocRef = doc(db, "questions", categoryId);
 
-      // Get current questions
       const categorySnap = await getDoc(categoryDocRef);
       if (!categorySnap.exists()) throw new Error("Category not found");
 
       const currentQuestions: Question[] = categorySnap.data().questions || [];
 
-      // Remove the question
       const updatedQuestions = currentQuestions.filter((q) => q.id !== questionId);
 
-      // Update Firestore
       await updateDoc(categoryDocRef, { questions: updatedQuestions });
 
-      // Update local state
       setCategories(
         categories.map((cat) =>
           cat.id === categoryId ? { ...cat, questions: updatedQuestions } : cat
@@ -282,43 +277,53 @@ export default function QuizAdmin() {
     }
   };
 
-
   const updateQuestion = async (categoryId: string, updatedQuestion: Question) => {
-    if (!updatedQuestion.question.fr.trim() || !updatedQuestion.question.en.trim() || !updatedQuestion.answer.fr.trim() || !updatedQuestion.answer.en.trim() || isSaving) return;
+    const answersValid = updatedQuestion.isBoolean
+      ? typeof updatedQuestion.answer.en === "boolean" && typeof updatedQuestion.answer.en === "boolean"
+      : updatedQuestion.answer.fr.toString().trim() && updatedQuestion.answer.en.toString().trim()
+
+    if (
+      !updatedQuestion.question.fr.trim() ||
+      !updatedQuestion.question.en.trim() ||
+      !answersValid ||
+      isSaving
+    ) return;
+
     setIsSaving(true);
 
     try {
       const auth = getAuth();
 
-      // Ensure user is signed in (anonymous fallback)
       if (!auth.currentUser) {
         await signInAnonymously(auth);
       }
 
       const categoryDocRef = doc(db, "questions", categoryId);
 
-      // Get current questions
       const categorySnap = await getDoc(categoryDocRef);
       if (!categorySnap.exists()) throw new Error("Category not found");
 
       const currentQuestions: Question[] = categorySnap.data().questions || [];
 
-      // Update the specific question in the array
       const updatedQuestions = currentQuestions.map((q) =>
         q.id === updatedQuestion.id
           ? {
-            ...q,
-            question: { en: updatedQuestion.question.en, fr: updatedQuestion.question.fr },
-            answer: { en: updatedQuestion.answer.en.toUpperCase().trim(), fr: updatedQuestion.answer.fr.toUpperCase().trim() },
-            timeLimit: updatedQuestion.timeLimit,
-          }
+              ...q,
+              question: { en: updatedQuestion.question.en, fr: updatedQuestion.question.fr },
+              answer: updatedQuestion.isBoolean
+                ? { en: updatedQuestion.answer.en, fr: updatedQuestion.answer.en }
+                : {
+                    en: updatedQuestion.answer.en.toString().toUpperCase().trim(),
+                    fr: updatedQuestion.answer.fr.toString().toUpperCase().trim(),
+                  },
+              timeLimit: updatedQuestion.timeLimit,
+              isBoolean: updatedQuestion.isBoolean,
+            }
           : q
       );
 
-      // Write back the updated array
       await updateDoc(categoryDocRef, { questions: updatedQuestions });
 
-      // Update local state
       setCategories(
         categories.map((cat) =>
           cat.id === categoryId ? { ...cat, questions: updatedQuestions } : cat
@@ -499,11 +504,23 @@ export default function QuizAdmin() {
                           </DialogDescription>
                         </DialogHeader>
                         <div className="space-y-4">
+                          {/* Boolean toggle */}
+                          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                            <div>
+                              <Label>True / False question</Label>
+                              <p className="text-xs text-muted-foreground mt-0.5">Players answer with True or False</p>
+                            </div>
+                            <Switch
+                              checked={newQuestion.isBoolean}
+                              onCheckedChange={(checked) =>
+                                setNewQuestion({ ...newQuestion, isBoolean: checked })
+                              }
+                            />
+                          </div>
+
                           <Label>Question</Label>
                           <div>
-                            <Label>
-                              <span className="text-muted-foreground">English</span>
-                            </Label>
+                            <Label><span className="text-muted-foreground">English</span></Label>
                             <Input
                               value={newQuestion.question.en}
                               onChange={(e) =>
@@ -513,9 +530,7 @@ export default function QuizAdmin() {
                             />
                           </div>
                           <div>
-                            <Label>
-                              <span className="text-muted-foreground">French</span>
-                            </Label>
+                            <Label><span className="text-muted-foreground">French</span></Label>
                             <Input
                               value={newQuestion.question.fr}
                               onChange={(e) =>
@@ -524,31 +539,50 @@ export default function QuizAdmin() {
                               placeholder="Enter question in French"
                             />
                           </div>
-                          <Label>Answer</Label>
-                          <div>
-                            <Label>
-                              <span className="text-muted-foreground">English</span>
-                            </Label>
-                            <Input
-                              value={newQuestion.answer.en}
-                              onChange={(e) =>
-                                setNewQuestion({ ...newQuestion, answer: { ...newQuestion.answer, en: e.target.value.toUpperCase() } })
-                              }
-                              placeholder="Enter answer in English"
-                            />
-                          </div>
-                          <div>
-                            <Label>
-                              <span className="text-muted-foreground">French</span>
-                            </Label>
-                            <Input
-                              value={newQuestion.answer.fr}
-                              onChange={(e) =>
-                                setNewQuestion({ ...newQuestion, answer: { ...newQuestion.answer, fr: e.target.value.toUpperCase() } })
-                              }
-                              placeholder="Enter answer in French"
-                            />
-                          </div>
+
+                          {/* Answer fields */}
+                          <Label>Correct Answer</Label>
+                          {newQuestion.isBoolean ? (
+                            <div className="flex gap-3">
+                              {["true", "false"].map((val) => (
+                                <Button
+                                  key={val}
+                                  type="button"
+                                  variant={newQuestion.answer.en === val ? "default" : "outline"}
+                                  className="flex-1 capitalize"
+                                  onClick={() =>
+                                    setNewQuestion({ ...newQuestion, answer: { en: Boolean(val), fr: Boolean(val) } })
+                                  }
+                                >
+                                  {val}
+                                </Button>
+                              ))}
+                            </div>
+                          ) : (
+                            <>
+                              <div>
+                                <Label><span className="text-muted-foreground">English</span></Label>
+                                <Input
+                                  value={newQuestion.answer.en.toString()}
+                                  onChange={(e) =>
+                                    setNewQuestion({ ...newQuestion, answer: { ...newQuestion.answer, en: e.target.value.toUpperCase() } })
+                                  }
+                                  placeholder="Enter answer in English"
+                                />
+                              </div>
+                              <div>
+                                <Label><span className="text-muted-foreground">French</span></Label>
+                                <Input
+                                  value={newQuestion.answer.fr.toString()}
+                                  onChange={(e) =>
+                                    setNewQuestion({ ...newQuestion, answer: { ...newQuestion.answer, fr: e.target.value.toUpperCase() } })
+                                  }
+                                  placeholder="Enter answer in French"
+                                />
+                              </div>
+                            </>
+                          )}
+
                           <div>
                             <Label htmlFor="time">Time Limit (seconds)</Label>
                             <Input
@@ -588,6 +622,11 @@ export default function QuizAdmin() {
                               <Badge variant="secondary" className="text-xs">
                                 {question.timeLimit}s
                               </Badge>
+                              {question.isBoolean && (
+                                <Badge variant="outline" className="text-xs">
+                                  True / False
+                                </Badge>
+                              )}
                             </div>
                             <p className="flex flex-col text-sm text-foreground space-y-1">
                               <span className="font-medium">Question: </span>
@@ -598,15 +637,17 @@ export default function QuizAdmin() {
                                 <span className="text-muted-foreground">French</span> {question.question.fr}
                               </span>
                             </p>
-                            <p className="flex flex-col text-sm text-muted-foreground space-y-1">
-                              <span className="font-medium">Answer: </span>
-                              <span>
-                                <span className="text-muted-foreground/80">English</span> {question.answer.en}
-                              </span>
-                              <span>
-                                <span className="text-muted-foreground/80">French</span> {question.answer.fr}
-                              </span>
-                            </p>
+                            {!question.isBoolean && (
+                              <p className="flex flex-col text-sm text-muted-foreground space-y-1">
+                                <span className="font-medium">Answer: </span>
+                                <span>
+                                  <span className="text-muted-foreground/80">English</span> {question.answer.en}
+                                </span>
+                                <span>
+                                  <span className="text-muted-foreground/80">French</span> {question.answer.fr}
+                                </span>
+                              </p>
+                            )}
                           </div>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -695,13 +736,23 @@ export default function QuizAdmin() {
           </DialogHeader>
           {editingQuestion && (
             <div className="space-y-4">
-              <Label>
-                Question
-              </Label>
+              {/* Boolean toggle */}
+              <div className="flex items-center justify-between rounded-lg border border-border p-3">
+                <div>
+                  <Label>True / False question</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Players answer with True or False</p>
+                </div>
+                <Switch
+                  checked={editingQuestion.isBoolean}
+                  onCheckedChange={(checked) =>
+                    setEditingQuestion({ ...editingQuestion, isBoolean: checked })
+                  }
+                />
+              </div>
+
+              <Label>Question</Label>
               <div>
-                <Label>
-                  <span className="text-muted-foreground">English</span>
-                </Label>
+                <Label><span className="text-muted-foreground">English</span></Label>
                 <Input
                   value={editingQuestion.question.en}
                   onChange={(e) =>
@@ -713,11 +764,8 @@ export default function QuizAdmin() {
                   placeholder="Enter question in English"
                 />
               </div>
-
               <div>
-                <Label>
-                  <span className="text-muted-foreground">French</span>
-                </Label>
+                <Label><span className="text-muted-foreground">French</span></Label>
                 <Input
                   value={editingQuestion.question.fr}
                   onChange={(e) =>
@@ -730,40 +778,55 @@ export default function QuizAdmin() {
                 />
               </div>
 
-              <Label>
-                Answer
-              </Label>
-              <div>
-                <Label>
-                  <span className="text-muted-foreground">English</span>
-                </Label>
-                <Input
-                  value={editingQuestion.answer.en}
-                  onChange={(e) =>
-                    setEditingQuestion({
-                      ...editingQuestion,
-                      answer: { ...editingQuestion.answer, en: e.target.value.toUpperCase() },
-                    })
-                  }
-                  placeholder="Enter answer in English"
-                />
-              </div>
+              {/* Answer fields */}
+              <Label>Correct Answer</Label>
+              {editingQuestion.isBoolean ? (
+                <div className="flex gap-3">
+                  {["true", "false"].map((val) => (
+                    <Button
+                      key={val}
+                      type="button"
+                      variant={editingQuestion.answer.en === val ? "default" : "outline"}
+                      className="flex-1 capitalize"
+                      onClick={() =>
+                        setEditingQuestion({ ...editingQuestion, answer: { en: val, fr: val } })
+                      }
+                    >
+                      {val}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <Label><span className="text-muted-foreground">English</span></Label>
+                    <Input
+                      value={editingQuestion.answer.en.toString()}
+                      onChange={(e) =>
+                        setEditingQuestion({
+                          ...editingQuestion,
+                          answer: { ...editingQuestion.answer, en: e.target.value.toUpperCase() },
+                        })
+                      }
+                      placeholder="Enter answer in English"
+                    />
+                  </div>
+                  <div>
+                    <Label><span className="text-muted-foreground">French</span></Label>
+                    <Input
+                      value={editingQuestion.answer.fr.toString()}
+                      onChange={(e) =>
+                        setEditingQuestion({
+                          ...editingQuestion,
+                          answer: { ...editingQuestion.answer, fr: e.target.value.toUpperCase() },
+                        })
+                      }
+                      placeholder="Enter answer in French"
+                    />
+                  </div>
+                </>
+              )}
 
-              <div>
-                <Label>
-                  <span className="text-muted-foreground">French</span>
-                </Label>
-                <Input
-                  value={editingQuestion.answer.fr}
-                  onChange={(e) =>
-                    setEditingQuestion({
-                      ...editingQuestion,
-                      answer: { ...editingQuestion.answer, fr: e.target.value.toUpperCase() },
-                    })
-                  }
-                  placeholder="Enter answer in French"
-                />
-              </div>
               <div>
                 <Label htmlFor="edit-time">Time Limit (seconds)</Label>
                 <Input
