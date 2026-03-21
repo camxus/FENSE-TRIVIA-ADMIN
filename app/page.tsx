@@ -548,7 +548,7 @@ export default function QuizAdmin() {
                                 <Button
                                   key={val}
                                   type="button"
-                                  variant={newQuestion.answer.en === val ? "default" : "outline"}
+                                  variant={newQuestion.answer.en === Boolean(val) ? "default" : "outline"}
                                   className="flex-1 capitalize"
                                   onClick={() =>
                                     setNewQuestion({ ...newQuestion, answer: { en: Boolean(val), fr: Boolean(val) } })
