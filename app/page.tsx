@@ -209,9 +209,9 @@ export default function QuizAdmin() {
         answer: newQuestion.isBoolean
           ? { en: newQuestion.answer.en, fr: newQuestion.answer.en }
           : {
-              fr: newQuestion.answer.fr.toString().toUpperCase().trim(),
-              en: newQuestion.answer.en.toString().toUpperCase().trim(),
-            },
+            fr: newQuestion.answer.fr.toString().toUpperCase().trim(),
+            en: newQuestion.answer.en.toString().toUpperCase().trim(),
+          },
         timeLimit: newQuestion.timeLimit,
         isBoolean: newQuestion.isBoolean,
       }
@@ -308,17 +308,17 @@ export default function QuizAdmin() {
       const updatedQuestions = currentQuestions.map((q) =>
         q.id === updatedQuestion.id
           ? {
-              ...q,
-              question: { en: updatedQuestion.question.en, fr: updatedQuestion.question.fr },
-              answer: updatedQuestion.isBoolean
-                ? { en: updatedQuestion.answer.en, fr: updatedQuestion.answer.en }
-                : {
-                    en: updatedQuestion.answer.en.toString().toUpperCase().trim(),
-                    fr: updatedQuestion.answer.fr.toString().toUpperCase().trim(),
-                  },
-              timeLimit: updatedQuestion.timeLimit,
-              isBoolean: updatedQuestion.isBoolean,
-            }
+            ...q,
+            question: { en: updatedQuestion.question.en, fr: updatedQuestion.question.fr },
+            answer: updatedQuestion.isBoolean
+              ? { en: updatedQuestion.answer.en, fr: updatedQuestion.answer.en }
+              : {
+                en: updatedQuestion.answer.en.toString().toUpperCase().trim(),
+                fr: updatedQuestion.answer.fr.toString().toUpperCase().trim(),
+              },
+            timeLimit: updatedQuestion.timeLimit,
+            isBoolean: updatedQuestion.isBoolean,
+          }
           : q
       );
 
@@ -544,19 +544,22 @@ export default function QuizAdmin() {
                           <Label>Correct Answer</Label>
                           {newQuestion.isBoolean ? (
                             <div className="flex gap-3">
-                              {["true", "false"].map((val) => (
-                                <Button
-                                  key={val}
-                                  type="button"
-                                  variant={newQuestion.answer.en === Boolean(val) ? "default" : "outline"}
-                                  className="flex-1 capitalize"
-                                  onClick={() =>
-                                    setNewQuestion({ ...newQuestion, answer: { en: Boolean(val), fr: Boolean(val) } })
-                                  }
-                                >
-                                  {val}
-                                </Button>
-                              ))}
+                              {["true", "false"].map((val) => {
+                                const boolVal = val === "true";
+                                return (
+                                  <Button
+                                    key={val}
+                                    type="button"
+                                    variant={newQuestion.answer.en === boolVal ? "default" : "outline"}
+                                    className="flex-1 capitalize"
+                                    onClick={() =>
+                                      setNewQuestion({ ...newQuestion, answer: { en: boolVal, fr: boolVal } })
+                                    }
+                                  >
+                                    {val}
+                                  </Button>
+                                );
+                              })}
                             </div>
                           ) : (
                             <>
