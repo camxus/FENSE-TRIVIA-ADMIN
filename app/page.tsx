@@ -785,19 +785,22 @@ export default function QuizAdmin() {
               <Label>Correct Answer</Label>
               {editingQuestion.isBoolean ? (
                 <div className="flex gap-3">
-                  {["true", "false"].map((val) => (
-                    <Button
-                      key={val}
-                      type="button"
-                      variant={editingQuestion.answer.en === val ? "default" : "outline"}
-                      className="flex-1 capitalize"
-                      onClick={() =>
-                        setEditingQuestion({ ...editingQuestion, answer: { en: val, fr: val } })
-                      }
-                    >
-                      {val}
-                    </Button>
-                  ))}
+                  {["true", "false"].map((val) => {
+                    const boolVal = val === "true";
+                    return (
+                      <Button
+                        key={val}
+                        type="button"
+                        variant={editingQuestion.answer.en === boolVal ? "default" : "outline"}
+                        className="flex-1 capitalize"
+                        onClick={() =>
+                          setEditingQuestion({ ...editingQuestion, answer: { en: boolVal, fr: boolVal } })
+                        }
+                      >
+                        {val}
+                      </Button>
+                    );
+                  })}
                 </div>
               ) : (
                 <>
